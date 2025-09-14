@@ -369,10 +369,10 @@ export default function Home() {
           <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-12 gap-3 sm:gap-4">
           <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
             <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">
-              {viewMode === 'list' && searchFilter !== 'all' ? '필터 결과' : '총 파크골프장'}
+              총 파크골프장
             </h3>
             <p className="text-xl sm:text-2xl font-bold text-blue-600">
-              {viewMode === 'list' ? filteredCourses.length : courses.length}개
+              {courses.length}개
             </p>
           </div>
           
@@ -464,10 +464,10 @@ export default function Home() {
           
           <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
             <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">
-              {viewMode === 'list' && searchFilter !== 'all' ? '필터 홀 수' : '총 홀 수'}
+              총 홀 수
             </h3>
             <p className="text-xl sm:text-2xl font-bold text-orange-600">
-              {(viewMode === 'list' ? filteredCourses : courses).reduce((total, course) => total + parseInt(course.홀수?.replace('홀', '') || '0'), 0)}홀
+              {courses.reduce((total, course) => total + parseInt(course.홀수?.replace('홀', '') || '0'), 0)}홀
             </p>
           </div>
           </div>
