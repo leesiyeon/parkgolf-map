@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "전국 파크골프장 현황",
   description: "전국 파크골프장 위치를 지도에서 확인하세요",
+  other: {
+    'google-adsense-account': 'ca-pub-1014042036964348',
+  },
 };
 
 export default function RootLayout({
