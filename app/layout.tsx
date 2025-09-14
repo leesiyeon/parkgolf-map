@@ -32,6 +32,11 @@ export default function RootLayout({
           src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=0e0864229b42ff2775b3a82802207f66&autoload=false&libraries=services,clusterer"
           strategy="afterInteractive"
         />
+        <Script
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1014042036964348"
+          strategy="afterInteractive"
+          crossOrigin="anonymous"
+        />
         {children}
       </body>
     </html>
