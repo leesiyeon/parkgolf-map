@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   description: "전국 파크골프장 위치를 지도에서 확인하세요",
   verification: {
     google: 'xoHssXt3pbecMM_vnU50q5z6hlRJ6Vq8oSO0_P4oQ-Q',
+    other: {
+      'naver-site-verification': '0e79735c0e5697d2a90c1eac0c084c7c9e58c108',
+    },
   },
   other: {
     'google-adsense-account': 'ca-pub-1014042036964348',
