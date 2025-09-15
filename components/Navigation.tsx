@@ -10,6 +10,7 @@ export default function Navigation() {
 
   const navigation = [
     { name: '파크골프장', href: '/', icon: '🗺️' },
+    { name: '통계', href: '/stats', icon: '📊' },
     { name: '뉴스', href: '/news', icon: '📰' },
     { name: '소개', href: '/about', icon: 'ℹ️' },
   ];

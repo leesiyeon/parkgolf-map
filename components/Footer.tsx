@@ -34,6 +34,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/stats" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  지역별 통계
+                </Link>
+              </li>
+              <li>
                 <Link href="/news" className="text-gray-600 hover:text-blue-600 transition-colors">
                   파크골프 뉴스
                 </Link>
