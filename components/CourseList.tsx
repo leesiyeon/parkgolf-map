@@ -215,7 +215,7 @@ export default function CourseList({ courses, onCourseClick, searchFilter, onFil
       // 시/군/구 필터 
       if (selectedCity !== 'all') {
         filtered = filtered.filter(course => 
-          course.주소 && course.주소.includes(selectedCity)
+          course.주소?.includes(selectedCity) || course.위치?.includes(selectedCity)
         );
       }
     }
@@ -231,7 +231,7 @@ export default function CourseList({ courses, onCourseClick, searchFilter, onFil
         course.규모?.toLowerCase().includes(searchTerm) ||
         course.연락처?.toLowerCase().includes(searchTerm) ||
         course.지역?.toLowerCase().includes(searchTerm) ||
-        (course.주소 && course.주소.toLowerCase().includes(searchTerm))
+        course.주소?.toLowerCase().includes(searchTerm)
       );
     }
 

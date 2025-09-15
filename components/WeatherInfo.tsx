@@ -98,11 +98,28 @@ export default function WeatherInfo({
 
   if (error) {
     return (
-      <div className={`bg-gray-50 rounded-xl border border-gray-200 ${compact ? 'p-3' : 'p-4'}`}>
-        <div className="flex items-center text-gray-500">
-          <span className="mr-2">🌤️</span>
-          <span className={`${compact ? 'text-xs' : 'text-sm'}`}>날씨 정보 없음</span>
+      <div className={`bg-yellow-50 rounded-xl border border-yellow-200 ${compact ? 'p-3' : 'p-4'}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center text-yellow-700">
+            <span className="mr-2">⚠️</span>
+            <span className={`${compact ? 'text-xs' : 'text-sm'}`}>
+              {compact ? '날씨 정보 오류' : '날씨 정보를 불러올 수 없습니다'}
+            </span>
+          </div>
+          {!compact && (
+            <button
+              onClick={() => fetchWeather()}
+              className="text-xs text-yellow-600 hover:text-yellow-800 transition-colors px-2 py-1 rounded bg-yellow-100 hover:bg-yellow-200"
+            >
+              재시도
+            </button>
+          )}
         </div>
+        {!compact && (
+          <div className="mt-2 text-xs text-yellow-600">
+            잠시 후 다시 시도하거나 새로고침해주세요
+          </div>
+        )}
       </div>
     );
   }
