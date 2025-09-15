@@ -116,13 +116,32 @@ export default function AboutPage() {
           </section>
 
           <section className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-6">
               📞 문의
             </h2>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-gray-700 leading-relaxed mb-6">
               사이트 이용 중 문의사항이나 개선 사항이 있으시면 언제든지 연락해 주세요. 
               더 나은 서비스 제공을 위해 지속적으로 노력하겠습니다.
             </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <span className="text-blue-600 mr-3 mt-0.5">📧</span>
+                <div className="text-sm text-blue-700">
+                  <p className="font-medium mb-1">이메일 문의</p>
+                  <p className="text-blue-600">
+                    <a 
+                      href="mailto:demoat2si@gmail.com" 
+                      className="hover:text-blue-800 font-medium transition-colors"
+                    >
+                      demoat2si@gmail.com
+                    </a>
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    파크골프장 정보 수정, 사이트 개선사항, 기술적 문제 등 언제든 연락주세요.
+                  </p>
+                </div>
+              </div>
+            </div>
           </section>
         </main>
       </div>
