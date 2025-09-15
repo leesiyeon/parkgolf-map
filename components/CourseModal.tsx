@@ -1,6 +1,7 @@
 'use client';
 
 import { ParkGolfCourse } from '@/types/parkgolf';
+import WeatherInfo from './WeatherInfo';
 
 interface CourseModalProps {
   course: ParkGolfCourse | null;
@@ -64,6 +65,23 @@ export default function CourseModal({ course, isOpen, onClose }: CourseModalProp
                   </div>
                 </div>
               </div>
+              
+              {/* 날씨 정보 */}
+              {course.latitude && course.longitude && (
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                    </svg>
+                    <p className="text-sm font-medium text-gray-700">실시간 날씨</p>
+                  </div>
+                  <WeatherInfo 
+                    latitude={course.latitude}
+                    longitude={course.longitude}
+                    courseName={course.시설명}
+                  />
+                </div>
+              )}
               
               {/* 규모 */}
               <div className="bg-gray-50 p-3 rounded-lg">

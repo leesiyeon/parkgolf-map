@@ -57,8 +57,8 @@ export default function Map({ courses, onMarkerClick }: MapProps) {
         try {
           const container = mapRef.current;
           const options = {
-            center: new window.kakao.maps.LatLng(37.5665, 126.9780), // 서울
-            level: 13
+            center: new window.kakao.maps.LatLng(36.5, 127.5), // 한국 중심
+            level: 13 // 한국 전체가 적절히 보이는 레벨
           };
 
           const newMap = new window.kakao.maps.Map(container, options);
@@ -129,6 +129,11 @@ export default function Map({ courses, onMarkerClick }: MapProps) {
           setClusterer(newClusterer);
           setIsLoading(false);
           setError(null);
+
+          // 지도 리사이즈 문제 해결을 위한 relayout 호출
+          setTimeout(() => {
+            newMap.relayout();
+          }, 100);
 
         } catch (err) {
           setError(`지도 생성 실패: ${(err as Error).message}`);
@@ -232,13 +237,12 @@ export default function Map({ courses, onMarkerClick }: MapProps) {
       setOverlays(newOverlays);
 
 
-      // 초기 로드 시에만 지도 범위 조정 (모든 마커가 보이도록)
+      // 초기 로드 시에만 적절한 줌 레벨로 설정 (한국 전체가 보이도록)
       if (isInitialLoad) {
-        const bounds = new window.kakao.maps.LatLngBounds();
-        newMarkers.forEach(marker => {
-          bounds.extend(marker.getPosition());
-        });
-        map.setBounds(bounds, 50, 50, 50, 50);
+        // 한국 중심 좌표로 이동하고 적절한 줌 레벨 설정
+        const center = new window.kakao.maps.LatLng(36.5, 127.5); // 한국 중심
+        map.setCenter(center);
+        map.setLevel(13); // 한국 전체가 적절히 보이는 레벨
         setIsInitialLoad(false);
       }
     }
@@ -274,6 +278,29 @@ export default function Map({ courses, onMarkerClick }: MapProps) {
       window.kakao.maps.event.removeListener(map, 'zoom_changed', handleZoomChanged);
     };
   }, [map, overlays]);
+
+  // 윈도우 리사이즈 시 지도 리레이아웃
+  useEffect(() => {
+    if (!map) return;
+
+    const handleResize = () => {
+      setTimeout(() => {
+        map.relayout();
+      }, 100);
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    // 컴포넌트가 보여질 때도 relayout 호출
+    const timer = setTimeout(() => {
+      map.relayout();
+    }, 200);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, [map]);
 
   return (
     <div className="w-full h-full relative">

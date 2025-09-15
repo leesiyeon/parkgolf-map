@@ -10,4 +10,5 @@ export interface ParkGolfCourse {
   연락처?: string;
   latitude: number;
   longitude: number;
+  지역?: string;
 }

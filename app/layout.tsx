@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,6 +18,25 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "전국 파크골프장 현황",
   description: "전국 파크골프장 위치를 지도에서 확인하세요",
+  keywords: "파크골프장, 파크골프, 골프장, 지도, 전국, 현황, 위치",
+  authors: [{ name: "파크골프맵" }],
+  creator: "파크골프맵",
+  publisher: "파크골프맵",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  icons: {
+    icon: '/icon',
+    shortcut: '/icon',
+    apple: '/apple-icon',
+    other: {
+      rel: 'apple-touch-icon-precomposed',
+      url: '/apple-icon',
+    },
+  },
+  manifest: '/manifest',
   verification: {
     google: 'xoHssXt3pbecMM_vnU50q5z6hlRJ6Vq8oSO0_P4oQ-Q',
     other: {
@@ -60,7 +81,13 @@ export default function RootLayout({
             gtag('config', 'G-8Q9BL927B7');
           `}
         </Script>
-        {children}
+        <div className="min-h-screen flex flex-col">
+          <Navigation />
+          <main className="flex-1">
+            {children}
+          </main>
+          <Footer />
+        </div>
       </body>
     </html>
   );

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>파크골프장 지오코딩</title>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=0e0864229b42ff2775b3a82802207f66&libraries=services"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        .progress {
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 20px;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            background: #4CAF50;
+            height: 100%;
+            transition: width 0.3s;
+        }
+        .log {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .error { color: red; }
+        .success { color: green; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>🎌 파크골프장 좌표 지오코딩</h1>
+    
+    <div class="stats">
+        <div class="stat-box">
+            <div class="stat-number" id="totalCount">-</div>
+            <div>전체</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number" id="missingCount">-</div>
+            <div>좌표 없음</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number" id="successCount">0</div>
+            <div>변환 성공</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number" id="failCount">0</div>
+            <div>변환 실패</div>
+        </div>
+    </div>
+
+    <div>
+        <button onclick="loadData()">데이터 로드</button>
+        <button onclick="startGeocodingTest()" id="testBtn" disabled>테스트 (5개)</button>
+        <button onclick="startGeocodingAll()" id="allBtn" disabled>전체 지오코딩</button>
+        <button onclick="downloadResults()" id="downloadBtn" disabled>결과 다운로드</button>
+    </div>
+
+    <div class="progress">
+        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+    </div>
+    <div id="progressText">대기 중...</div>
+
+    <div class="log" id="logArea">
+        준비됨. '데이터 로드' 버튼을 클릭하세요.
+    </div>
+
+    <script>
+        let allCourses = [];
+        let missingCoords = [];
+        let geocodedResults = [];
+        let isRunning = false;
+
+        // 로그 함수
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            logArea.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        // 데이터 로드
+        async function loadData() {
+            try {
+                log('KPGA 데이터 로드 중...');
+                const response = await fetch('/data/kpga-all-courses.json');
+                const data = await response.json();
+                
+                allCourses = data;
+                missingCoords = data.filter(course => 
+                    !course.latitude || 
+                    !course.longitude || 
+                    course.latitude === '' || 
+                    course.longitude === '' ||
+                    isNaN(parseFloat(course.latitude)) ||
+                    isNaN(parseFloat(course.longitude))
+                );
+
+                // 통계 업데이트
+                document.getElementById('totalCount').textContent = allCourses.length;
+                document.getElementById('missingCount').textContent = missingCoords.length;
+                
+                log(`데이터 로드 완료: 전체 ${allCourses.length}개, 좌표 없음 ${missingCoords.length}개`, 'success');
+                
+                // 버튼 활성화
+                document.getElementById('testBtn').disabled = false;
+                document.getElementById('allBtn').disabled = false;
+
+                // 처음 10개 미리보기
+                log('좌표 없는 파크골프장 처음 10개:');
+                missingCoords.slice(0, 10).forEach((course, i) => {
+                    log(`  ${i + 1}. ${course.시설명} (${course.주소}) - ${course.지역}`);
+                });
+
+            } catch (error) {
+                log(`데이터 로드 실패: ${error.message}`, 'error');
+            }
+        }
+
+        // 개별 주소 지오코딩
+        function geocodeAddress(address) {
+            return new Promise((resolve) => {
+                const geocoder = new kakao.maps.services.Geocoder();
+                
+                // 주소 정리
+                const cleanAddress = address
+                    .replace(/\(.*?\)/g, '') // 괄호 안 내용 제거
+                    .replace(/\s+/g, ' ')     // 연속 공백 정리
+                    .trim();
+
+                geocoder.addressSearch(cleanAddress, function(result, status) {
+                    if (status === kakao.maps.services.Status.OK) {
+                        const coords = result[0];
+                        resolve({
+                            latitude: parseFloat(coords.y),
+                            longitude: parseFloat(coords.x),
+                            success: true
+                        });
+                    } else {
+                        resolve({
+                            latitude: null,
+                            longitude: null,
+                            success: false
+                        });
+                    }
+                });
+            });
+        }
+
+        // 배치 지오코딩
+        async function batchGeocode(courses, isTest = false) {
+            const results = [];
+            const total = courses.length;
+            let successCount = 0;
+            let failCount = 0;
+
+            isRunning = true;
+            updateButtons();
+
+            for (let i = 0; i < courses.length; i++) {
+                if (!isRunning) break; // 중단됨
+
+                const course = courses[i];
+                const progress = ((i + 1) / total) * 100;
+                
+                // 진행률 업데이트
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressText').textContent = 
+                    `진행중: ${i + 1}/${total} (${progress.toFixed(1)}%) - ${course.시설명}`;
+
+                log(`[${i + 1}/${total}] ${course.시설명} - ${course.주소}`);
+
+                const geocodeResult = await geocodeAddress(course.주소);
+                
+                const updatedCourse = {
+                    ...course,
+                    latitude: geocodeResult.latitude,
+                    longitude: geocodeResult.longitude,
+                    기존매칭: geocodeResult.success ? '지오코딩' : course.기존매칭
+                };
+
+                results.push(updatedCourse);
+
+                if (geocodeResult.success) {
+                    successCount++;
+                    log(`  ✓ 성공: ${geocodeResult.latitude}, ${geocodeResult.longitude}`, 'success');
+                } else {
+                    failCount++;
+                    log(`  ✗ 실패: 좌표를 찾을 수 없음`, 'error');
+                }
+
+                // 통계 업데이트
+                document.getElementById('successCount').textContent = successCount;
+                document.getElementById('failCount').textContent = failCount;
+
+                // API 호출 제한을 위한 지연 (500ms)
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            isRunning = false;
+            updateButtons();
+
+            const finalSuccessRate = total > 0 ? (successCount / total * 100).toFixed(1) : 0;
+            log(`\n=== ${isTest ? '테스트' : '지오코딩'} 완료 ===`, 'success');
+            log(`성공: ${successCount}개, 실패: ${failCount}개, 성공률: ${finalSuccessRate}%`, 'success');
+
+            return results;
+        }
+
+        // 테스트 지오코딩 (5개만)
+        async function startGeocodingTest() {
+            if (missingCoords.length === 0) {
+                log('좌표가 없는 파크골프장이 없습니다.', 'warning');
+                return;
+            }
+
+            log('\n=== 테스트 지오코딩 시작 (5개) ===');
+            const testCourses = missingCoords.slice(0, 5);
+            geocodedResults = await batchGeocode(testCourses, true);
+        }
+
+        // 전체 지오코딩
+        async function startGeocodingAll() {
+            if (missingCoords.length === 0) {
+                log('좌표가 없는 파크골프장이 없습니다.', 'warning');
+                return;
+            }
+
+            if (!confirm(`총 ${missingCoords.length}개의 주소를 지오코딩하시겠습니까? 시간이 오래 걸릴 수 있습니다.`)) {
+                return;
+            }
+
+            log('\n=== 전체 지오코딩 시작 ===');
+            geocodedResults = await batchGeocode(missingCoords);
+            
+            // 다운로드 버튼 활성화
+            document.getElementById('downloadBtn').disabled = false;
+        }
+
+        // 결과 다운로드
+        function downloadResults() {
+            if (geocodedResults.length === 0) {
+                log('다운로드할 결과가 없습니다.', 'warning');
+                return;
+            }
+
+            // 전체 데이터에 지오코딩 결과 통합
+            const updatedCourses = allCourses.map(course => {
+                const geocoded = geocodedResults.find(gc => gc.시설명 === course.시설명);
+                return geocoded || course;
+            });
+
+            // JSON 다운로드
+            const jsonData = JSON.stringify(updatedCourses, null, 2);
+            downloadFile('kpga-all-courses-geocoded.json', jsonData, 'application/json');
+
+            // CSV 다운로드
+            const csvData = convertToCSV(updatedCourses);
+            downloadFile('kpga-all-courses-geocoded.csv', csvData, 'text/csv');
+
+            log('결과 파일 다운로드 완료!', 'success');
+        }
+
+        // 파일 다운로드 헬퍼
+        function downloadFile(filename, content, type) {
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // CSV 변환
+        function convertToCSV(data) {
+            const headers = ['연번', '시설명', '위치', '규모', '홀수', '운영기관', '연락처', 'latitude', 'longitude', '지역', '기존매칭'];
+            const csvRows = [headers.join(',')];
+            
+            data.forEach((row, index) => {
+                const values = [
+                    index + 1,
+                    `"${row.시설명 || ''}"`,
+                    `"${row.주소 || ''}"`,
+                    `"${row.규모 || ''}"`,
+                    `"${row.홀수 || ''}"`,
+                    `"${row.운영기관 || ''}"`,
+                    `"${row.연락처 || ''}"`,
+                    row.latitude || '',
+                    row.longitude || '',
+                    `"${row.지역 || ''}"`,
+                    `"${row.기존매칭 || '신규'}"`
+                ];
+                csvRows.push(values.join(','));
+            });
+            
+            return csvRows.join('\n');
+        }
+
+        // 버튼 상태 업데이트
+        function updateButtons() {
+            document.getElementById('testBtn').disabled = isRunning;
+            document.getElementById('allBtn').disabled = isRunning;
+        }
+
+        // 페이지 로드시 카카오맵 라이브러리 체크
+        window.onload = function() {
+            if (typeof kakao === 'undefined') {
+                log('카카오맵 라이브러리 로드 실패', 'error');
+            } else {
+                log('카카오맵 라이브러리 로드 완료', 'success');
+            }
+        };
+    </script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import Papa from 'papaparse';
 import Map from '@/components/Map';
 import CourseModal from '@/components/CourseModal';
 import CourseList from '@/components/CourseList';
+import WeatherSummary from '@/components/WeatherSummary';
 import { ParkGolfCourse } from '@/types/parkgolf';
 
 export default function Home() {
@@ -16,17 +17,6 @@ export default function Home() {
   const [searchFilter, setSearchFilter] = useState<string>('all');
   const [filteredCourses, setFilteredCourses] = useState<ParkGolfCourse[]>([]);
 
-  // CSV 데이터 파싱 함수
-  const parseCourseData = (row: any): ParkGolfCourse => {
-    const lat = parseFloat(row.latitude);
-    const lng = parseFloat(row.longitude);
-    
-    return {
-      ...row,
-      latitude: lat,
-      longitude: lng
-    };
-  };
 
   // 지역별 필터링 함수
   const filterCourses = (filter: string, courseList: ParkGolfCourse[]) => {
@@ -236,52 +226,56 @@ export default function Home() {
   }, [searchFilter, courses]);
 
   useEffect(() => {
-    // 다중 CSV 파일 로드 (좌표 포함)
+    // KPGA 통합 데이터 로드
     const loadCourses = async () => {
       try {
-        const csvFiles = [
-          '/data/제목 없는 스프레드시트 - 서울특별시_파크골프장 현황_20230508.csv',
-          '/data/제목 없는 스프레드시트 - 인천광역시_파크골프장 현황_20250310.csv',
-          '/data/제목 없는 스프레드시트 - 전라남도_파크골프장현황_20250227.csv',
-          '/data/제목 없는 스프레드시트 - 대구광역시_파크골프장_좌표포함_20250305.csv',
-          '/data/제목 없는 스프레드시트 - 전북특별자치도_파크골프장 현황_20250228.csv',
-          '/data/제목 없는 스프레드시트 - 광주광역시_파크골프장 현황_좌표포함_20250311.csv',
-          '/data/제목 없는 스프레드시트 - 경상남도 거창군_파크골프장_좌표포함_20250801.csv',
-          '/data/제목 없는 스프레드시트 - 경상북도_파크골프장_좌표포함_20250310.csv',
-          '/data/제목 없는 스프레드시트 - 강원특별자치도_파크골프장_좌표포함_20250307.csv',
-          '/data/제목 없는 스프레드시트 - 세종특별자치시_파크골프장_좌표포함_20250314.csv'
-        ];
-
-        const allCourses: ParkGolfCourse[] = [];
-
-        for (const csvFile of csvFiles) {
-          const response = await fetch(csvFile);
-          const csvText = await response.text();
-          
-          await new Promise<void>((resolve) => {
-            Papa.parse(csvText, {
-              header: true,
-              complete: (results) => {
-                const rawData = results.data as any[];
-                
-                // 유효한 데이터만 필터링하고 좌표 변환
-                const validCourses = rawData
-                  .filter(row => row.시설명 && row.latitude && row.longitude)
-                  .map(row => parseCourseData(row));
-                
-                allCourses.push(...validCourses);
-                resolve();
-              },
-              error: (error: any) => {
-                resolve();
-              }
-            });
-          });
-        }
+        // 통합된 KPGA 데이터 파일 사용
+        const response = await fetch('/data/kpga-all-courses.csv');
+        const csvText = await response.text();
         
-        setCourses(allCourses);
-        setLoading(false);
+        await new Promise<void>((resolve) => {
+          Papa.parse(csvText, {
+            header: true,
+            complete: (results) => {
+              const rawData = results.data as any[];
+              
+              // 유효한 데이터만 필터링하고 좌표 변환
+              const validCourses = rawData
+                .filter(row => row.시설명 && row.시설명.trim())
+                .map(row => {
+                  // 좌표가 있는 경우만 지도에 표시, 없는 경우는 목록에서만 확인 가능
+                  const lat = parseFloat(row.latitude);
+                  const lng = parseFloat(row.longitude);
+                  
+                  return {
+                    연번: row.연번 || '',
+                    시설명: row.시설명,
+                    위치: row.위치 || '',
+                    규모: row.규모 || '',
+                    홀수: row.홀수 || '',
+                    운영기관: row.운영기관 || '',
+                    연락처: row.연락처 || '',
+                    latitude: isNaN(lat) ? 0 : lat,
+                    longitude: isNaN(lng) ? 0 : lng,
+                    지역: row.지역 || '',
+                  };
+                })
+                .filter(course => course.시설명); // 시설명이 있는 데이터만
+              
+              setCourses(validCourses);
+              setLoading(false);
+              console.log(`KPGA 통합 데이터 로드 완료: ${validCourses.length}개 파크골프장`);
+              console.log(`좌표 있음: ${validCourses.filter(c => c.latitude && c.longitude).length}개`);
+            },
+            error: (error: any) => {
+              console.error('KPGA 데이터 로드 실패:', error);
+              setLoading(false);
+            }
+          });
+        });
+        
       } catch (error) {
+        console.error('KPGA 데이터 로드 실패:', error);
         setLoading(false);
       }
     };
@@ -299,6 +293,7 @@ export default function Home() {
     setSelectedCourse(null);
   };
 
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -312,164 +307,129 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">전국 파크골프장 현황</h1>
-              <p className="text-gray-600 mt-1">전국 파크골프장 정보를 확인하세요.</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 overflow-hidden">
+        <div className="absolute inset-0 bg-black opacity-10"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center p-2 bg-blue-100 rounded-full mb-4">
+              <span className="text-3xl">⛳</span>
             </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-4 tracking-tight">
+              전국 파크골프장
+              <span className="block text-blue-200">현황 지도</span>
+            </h1>
+            <p className="text-xl text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed">
+              전국 424개 파크골프장 정보를 한눈에 확인하고, 
+              <br className="hidden sm:block" />
+              가까운 파크골프장을 쉽게 찾아보세요
+            </p>
             
+            {/* 통계 카드 */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto mb-8">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <div className="text-2xl sm:text-3xl font-bold text-white">{courses.length}</div>
+                <div className="text-blue-200 text-sm font-medium">총 파크골프장</div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <div className="text-2xl sm:text-3xl font-bold text-white">
+                  {courses.filter(c => c.latitude && c.longitude).length}
+                </div>
+                <div className="text-blue-200 text-sm font-medium">지도 표시</div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <div className="text-2xl sm:text-3xl font-bold text-white">17</div>
+                <div className="text-blue-200 text-sm font-medium">시/도</div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <div className="text-2xl sm:text-3xl font-bold text-white">
+                  {courses.reduce((total, course) => total + parseInt(course.홀수?.replace('홀', '') || '0'), 0)}
+                </div>
+                <div className="text-blue-200 text-sm font-medium">총 홀 수</div>
+              </div>
+            </div>
+
             {/* 뷰 모드 전환 버튼 */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="inline-flex bg-white/10 backdrop-blur-sm rounded-xl p-1 border border-white/20">
               <button
                 onClick={() => setViewMode('map')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
                   viewMode === 'map'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-700 shadow-lg transform scale-105'
+                    : 'text-white hover:bg-white/10'
                 }`}
               >
-                🗺️ 지도
+                <span className="mr-2">🗺️</span>
+                지도로 보기
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
                   viewMode === 'list'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-700 shadow-lg transform scale-105'
+                    : 'text-white hover:bg-white/10'
                 }`}
               >
-                📋 목록
+                <span className="mr-2">📋</span>
+                목록으로 보기
               </button>
             </div>
           </div>
         </div>
-      </header>
+        
+        {/* Decorative elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full"></div>
+          <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-white/5 rounded-full"></div>
+        </div>
+      </div>
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* 날씨 정보 섹션 */}
+        <WeatherSummary />
+        
         {viewMode === 'map' ? (
-          <div className="bg-white rounded-lg shadow-sm border h-[400px] sm:h-[500px] lg:h-[600px]">
-            <Map courses={courses} onMarkerClick={handleMarkerClick} />
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">파크골프장 지도</h2>
+                  <p className="text-sm text-gray-600">지도에서 파크골프장 위치를 확인하세요</p>
+                </div>
+                <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-500">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                    파크골프장
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="h-[500px] sm:h-[600px] lg:h-[700px]">
+              <Map courses={courses} onMarkerClick={handleMarkerClick} />
+            </div>
           </div>
         ) : (
-          <div className="h-[500px] sm:h-[600px] lg:h-[700px] xl:h-[800px] overflow-y-auto">
-            <CourseList 
-              courses={filteredCourses} 
-              onCourseClick={handleMarkerClick}
-              searchFilter={searchFilter}
-              onFilterChange={setSearchFilter}
-            />
-          </div>
-        )}
-        
-        {/* 통계 카드 - 지도 탭에서만 표시 */}
-        {viewMode === 'map' && (
-          <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-12 gap-3 sm:gap-4">
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">
-              총 파크골프장
-            </h3>
-            <p className="text-xl sm:text-2xl font-bold text-blue-600">
-              {courses.length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">서울시</h3>
-            <p className="text-xl sm:text-2xl font-bold text-green-600">
-              {courses.filter(course => {
-                const seoulFacilities = [
-                  '여의도한강 파크골프장',
-                  '월드컵공원 파크골프장', 
-                  '서남물재생센터 파크골프장',
-                  '잠실운동장 파크골프장',
-                  '중랑천 파크골프장',
-                  '안양천 파크골프장 (양천)',
-                  '안양천 파크골프장 (구로①)',
-                  '안양천 파크골프장 (금천)',
-                  '안양천 파크골프장 (영등포)',
-                  '안양천 파크골프장 (구로②)',
-                  '중랑천 파크골프장 (동대문구)',
-                  '중랑천 파크골프장 (광진구)'
-                ];
-                return seoulFacilities.includes(course.시설명);
-              }).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">인천시</h3>
-            <p className="text-xl sm:text-2xl font-bold text-purple-600">
-              {courses.filter(course => course.위치?.includes('남동구') || course.위치?.includes('연수구') || (course.위치?.includes('서구') && course.위치?.includes('인천'))).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">세종시</h3>
-            <p className="text-xl sm:text-2xl font-bold text-rose-600">
-              {courses.filter(course => course.위치?.includes('세종특별자치시')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">광주광역시</h3>
-            <p className="text-xl sm:text-2xl font-bold text-indigo-600">
-              {courses.filter(course => (course.위치?.includes('서구') && !course.위치?.includes('인천')) || (course.위치?.includes('북구') && !course.위치?.includes('대구')) || course.위치?.includes('동구') || course.위치?.includes('남구') || course.위치?.includes('광산구')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">전라남도</h3>
-            <p className="text-xl sm:text-2xl font-bold text-green-600">
-              {courses.filter(course => course.위치?.includes('전라남도')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">대구광역시</h3>
-            <p className="text-xl sm:text-2xl font-bold text-red-600">
-              {courses.filter(course => course.위치?.includes('대구광역시')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">전북특별자치도</h3>
-            <p className="text-xl sm:text-2xl font-bold text-yellow-600">
-              {courses.filter(course => course.위치?.includes('전북특별자치도')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">경상남도</h3>
-            <p className="text-xl sm:text-2xl font-bold text-teal-600">
-              {courses.filter(course => course.위치?.includes('경상남도')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">경상북도</h3>
-            <p className="text-xl sm:text-2xl font-bold text-cyan-600">
-              {courses.filter(course => course.위치?.includes('경상북도')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">강원특별자치도</h3>
-            <p className="text-xl sm:text-2xl font-bold text-emerald-600">
-              {courses.filter(course => course.위치?.includes('강원특별자치도')).length}개
-            </p>
-          </div>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">
-              총 홀 수
-            </h3>
-            <p className="text-xl sm:text-2xl font-bold text-orange-600">
-              {courses.reduce((total, course) => total + parseInt(course.홀수?.replace('홀', '') || '0'), 0)}홀
-            </p>
-          </div>
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-gray-50 to-green-50 px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">파크골프장 목록</h2>
+                  <p className="text-sm text-gray-600">상세 정보와 필터링 기능을 활용하세요</p>
+                </div>
+                <div className="hidden sm:flex items-center space-x-4 text-sm text-gray-500">
+                  <span>{filteredCourses.length}개 표시</span>
+                </div>
+              </div>
+            </div>
+            <div className="h-[500px] sm:h-[600px] lg:h-[700px] xl:h-[800px] overflow-y-auto">
+              <CourseList 
+                courses={filteredCourses} 
+                onCourseClick={handleMarkerClick}
+                searchFilter={searchFilter}
+                onFilterChange={setSearchFilter}
+              />
+            </div>
           </div>
         )}
       </main>
