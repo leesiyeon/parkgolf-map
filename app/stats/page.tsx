@@ -13,6 +13,28 @@ interface RegionStats {
   hasCoordinates: number;
   hasContact: number;
   operatorTypes: { [key: string]: number };
+  accessibility: number; // 접근성 점수 (좌표 + 연락처)
+  avgSize: string; // 평균 규모
+  largestCourse: { name: string; holes: number };
+  smallestCourse: { name: string; holes: number };
+}
+
+interface AccessibilityStats {
+  metro: number; // 수도권
+  major: number; // 광역시
+  rural: number; // 기타 지역
+}
+
+interface SizeDistribution {
+  small: number; // 9홀 이하
+  medium: number; // 10-18홀
+  large: number; // 19홀 이상
+}
+
+interface TrendData {
+  period: string;
+  growth: number;
+  newCourses: number;
 }
 
 export default function StatsPage() {
@@ -20,9 +42,12 @@ export default function StatsPage() {
   const [regionStats, setRegionStats] = useState<RegionStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'overview' | 'details'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'insights' | 'compare'>('overview');
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [accessibilityStats, setAccessibilityStats] = useState<AccessibilityStats>({ metro: 0, major: 0, rural: 0 });
+  const [sizeDistribution, setSizeDistribution] = useState<SizeDistribution>({ small: 0, medium: 0, large: 0 });
+  const [compareRegions, setCompareRegions] = useState<string[]>([]);
   const itemsPerPage = 6;
 
   useEffect(() => {
@@ -42,6 +67,8 @@ export default function StatsPage() {
           
           setCourses(validCourses);
           calculateRegionStats(validCourses);
+          calculateAccessibilityStats(validCourses);
+          calculateSizeDistribution(validCourses);
           setLoading(false);
         }
       });
@@ -75,6 +102,25 @@ export default function StatsPage() {
       const hasCoordinates = courses.filter(c => c.latitude && c.longitude && c.latitude > 0).length;
       const hasContact = courses.filter(c => c.연락처?.trim()).length;
       
+      // 접근성 점수 (좌표 + 연락처 정보 완성도)
+      const accessibility = Math.round(((hasCoordinates + hasContact) / (courses.length * 2)) * 100);
+      
+      // 평균 규모 계산
+      const avgSize = avgHoles <= 9 ? '소형' : avgHoles <= 18 ? '중형' : '대형';
+      
+      // 최대/최소 코스 찾기
+      const coursesWithHoles = courses
+        .map(c => ({ name: c.시설명, holes: parseInt(c.홀수?.replace('홀', '') || '0') }))
+        .filter(c => c.holes > 0);
+      
+      const largestCourse = coursesWithHoles.length > 0 
+        ? coursesWithHoles.reduce((max, course) => course.holes > max.holes ? course : max)
+        : { name: '-', holes: 0 };
+      
+      const smallestCourse = coursesWithHoles.length > 0
+        ? coursesWithHoles.reduce((min, course) => course.holes < min.holes ? course : min)
+        : { name: '-', holes: 0 };
+      
       // 운영기관 분류
       const operatorTypes: { [key: string]: number } = {};
       courses.forEach(c => {
@@ -90,13 +136,38 @@ export default function StatsPage() {
         avgHoles,
         hasCoordinates,
         hasContact,
-        operatorTypes
+        operatorTypes,
+        accessibility,
+        avgSize,
+        largestCourse,
+        smallestCourse
       };
     });
 
     // 개수별로 정렬
     stats.sort((a, b) => b.count - a.count);
     setRegionStats(stats);
+  };
+
+  const calculateAccessibilityStats = (data: ParkGolfCourse[]) => {
+    const metro = data.filter(c => ['서울', '경기', '인천'].includes(c.지역 || '')).length;
+    const major = data.filter(c => ['부산', '대구', '광주', '대전', '울산', '세종'].includes(c.지역 || '')).length;
+    const rural = data.length - metro - major;
+    
+    setAccessibilityStats({ metro, major, rural });
+  };
+
+  const calculateSizeDistribution = (data: ParkGolfCourse[]) => {
+    let small = 0, medium = 0, large = 0;
+    
+    data.forEach(course => {
+      const holes = parseInt(course.홀수?.replace('홀', '') || '0');
+      if (holes <= 9) small++;
+      else if (holes <= 18) medium++;
+      else if (holes > 18) large++;
+    });
+    
+    setSizeDistribution({ small, medium, large });
   };
 
   const getOperatorType = (operator: string): string => {
@@ -198,7 +269,7 @@ export default function StatsPage() {
         {/* 탭 네비게이션 */}
         <div className="bg-white rounded-xl shadow-sm border mb-8">
           <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
+            <nav className="flex flex-wrap space-x-4 sm:space-x-8 px-6">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
@@ -208,6 +279,26 @@ export default function StatsPage() {
                 }`}
               >
                 📊 전체 개요
+              </button>
+              <button
+                onClick={() => setActiveTab('insights')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'insights'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                🔍 심화 분석
+              </button>
+              <button
+                onClick={() => setActiveTab('compare')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'compare'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                ⚖️ 지역 비교
               </button>
               <button
                 onClick={() => setActiveTab('details')}
@@ -275,6 +366,276 @@ export default function StatsPage() {
             </div>
           )}
         </div>
+
+        {/* 심화 분석 탭 */}
+        {activeTab === 'insights' && (
+          <div className="space-y-8">
+            {/* 접근성 분석 */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">🚇 접근성 분석</h2>
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="text-center p-6 bg-blue-50 rounded-xl border border-blue-200">
+                  <div className="text-3xl font-bold text-blue-600 mb-2">{accessibilityStats.metro}</div>
+                  <div className="text-blue-800 font-medium">수도권</div>
+                  <div className="text-sm text-blue-600 mt-1">
+                    ({Math.round((accessibilityStats.metro / totalCourses) * 100)}%)
+                  </div>
+                </div>
+                <div className="text-center p-6 bg-green-50 rounded-xl border border-green-200">
+                  <div className="text-3xl font-bold text-green-600 mb-2">{accessibilityStats.major}</div>
+                  <div className="text-green-800 font-medium">광역시</div>
+                  <div className="text-sm text-green-600 mt-1">
+                    ({Math.round((accessibilityStats.major / totalCourses) * 100)}%)
+                  </div>
+                </div>
+                <div className="text-center p-6 bg-orange-50 rounded-xl border border-orange-200">
+                  <div className="text-3xl font-bold text-orange-600 mb-2">{accessibilityStats.rural}</div>
+                  <div className="text-orange-800 font-medium">기타 지역</div>
+                  <div className="text-sm text-orange-600 mt-1">
+                    ({Math.round((accessibilityStats.rural / totalCourses) * 100)}%)
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-700">
+                  💡 <strong>인사이트:</strong> 수도권에 전체 파크골프장의 {Math.round((accessibilityStats.metro / totalCourses) * 100)}%가 집중되어 있어, 
+                  지방 지역의 파크골프 인프라 확충이 필요해 보입니다.
+                </p>
+              </div>
+            </div>
+
+            {/* 규모별 분석 */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">📏 규모별 분석</h2>
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="text-center p-6 bg-yellow-50 rounded-xl border border-yellow-200">
+                  <div className="text-3xl font-bold text-yellow-600 mb-2">{sizeDistribution.small}</div>
+                  <div className="text-yellow-800 font-medium">소형 (9홀 이하)</div>
+                  <div className="text-sm text-yellow-600 mt-1">
+                    ({Math.round((sizeDistribution.small / totalCourses) * 100)}%)
+                  </div>
+                </div>
+                <div className="text-center p-6 bg-purple-50 rounded-xl border border-purple-200">
+                  <div className="text-3xl font-bold text-purple-600 mb-2">{sizeDistribution.medium}</div>
+                  <div className="text-purple-800 font-medium">중형 (10-18홀)</div>
+                  <div className="text-sm text-purple-600 mt-1">
+                    ({Math.round((sizeDistribution.medium / totalCourses) * 100)}%)
+                  </div>
+                </div>
+                <div className="text-center p-6 bg-red-50 rounded-xl border border-red-200">
+                  <div className="text-3xl font-bold text-red-600 mb-2">{sizeDistribution.large}</div>
+                  <div className="text-red-800 font-medium">대형 (19홀 이상)</div>
+                  <div className="text-sm text-red-600 mt-1">
+                    ({Math.round((sizeDistribution.large / totalCourses) * 100)}%)
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6">
+                <div className="bg-gray-200 rounded-full h-4 mb-2">
+                  <div className="flex h-4 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-yellow-500" 
+                      style={{ width: `${(sizeDistribution.small / totalCourses) * 100}%` }}
+                    ></div>
+                    <div 
+                      className="bg-purple-500" 
+                      style={{ width: `${(sizeDistribution.medium / totalCourses) * 100}%` }}
+                    ></div>
+                    <div 
+                      className="bg-red-500" 
+                      style={{ width: `${(sizeDistribution.large / totalCourses) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>소형</span>
+                  <span>중형</span>
+                  <span>대형</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 데이터 품질 분석 */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">📈 데이터 품질 분석</h2>
+              <div className="grid md:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-4">정보 완성도</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">위치 정보</span>
+                        <span className="text-sm text-gray-600">
+                          {courses.filter(c => c.latitude && c.longitude && c.latitude > 0).length}/{totalCourses}
+                        </span>
+                      </div>
+                      <div className="bg-gray-200 rounded-full h-3">
+                        <div 
+                          className="bg-green-500 h-3 rounded-full" 
+                          style={{ 
+                            width: `${(courses.filter(c => c.latitude && c.longitude && c.latitude > 0).length / totalCourses) * 100}%` 
+                          }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {Math.round((courses.filter(c => c.latitude && c.longitude && c.latitude > 0).length / totalCourses) * 100)}% 완성
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">연락처</span>
+                        <span className="text-sm text-gray-600">
+                          {courses.filter(c => c.연락처?.trim()).length}/{totalCourses}
+                        </span>
+                      </div>
+                      <div className="bg-gray-200 rounded-full h-3">
+                        <div 
+                          className="bg-blue-500 h-3 rounded-full" 
+                          style={{ 
+                            width: `${(courses.filter(c => c.연락처?.trim()).length / totalCourses) * 100}%` 
+                          }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {Math.round((courses.filter(c => c.연락처?.trim()).length / totalCourses) * 100)}% 완성
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">홀 수 정보</span>
+                        <span className="text-sm text-gray-600">
+                          {courses.filter(c => c.홀수?.trim() && parseInt(c.홀수.replace('홀', '')) > 0).length}/{totalCourses}
+                        </span>
+                      </div>
+                      <div className="bg-gray-200 rounded-full h-3">
+                        <div 
+                          className="bg-purple-500 h-3 rounded-full" 
+                          style={{ 
+                            width: `${(courses.filter(c => c.홀수?.trim() && parseInt(c.홀수.replace('홀', '')) > 0).length / totalCourses) * 100}%` 
+                          }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {Math.round((courses.filter(c => c.홀수?.trim() && parseInt(c.홀수.replace('홀', '')) > 0).length / totalCourses) * 100)}% 완성
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-4">운영 현황</h3>
+                  <div className="space-y-3">
+                    {Object.entries(
+                      courses.reduce((acc, course) => {
+                        const type = getOperatorType(course.운영기관 || '기타');
+                        acc[type] = (acc[type] || 0) + 1;
+                        return acc;
+                      }, {} as { [key: string]: number })
+                    ).map(([type, count]) => (
+                      <div key={type} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700">{type}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-gray-600">{count}개</span>
+                          <span className="text-xs text-gray-500">
+                            ({Math.round((count / totalCourses) * 100)}%)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* 지역 비교 탭 */}
+        {activeTab === 'compare' && (
+          <div className="space-y-8">
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">⚖️ 지역별 비교 분석</h2>
+              
+              {/* 비교할 지역 선택 */}
+              <div className="mb-6">
+                <h3 className="font-medium text-gray-900 mb-3">비교할 지역 선택 (최대 4개)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {regionStats.slice(0, 12).map((stat) => (
+                    <button
+                      key={stat.region}
+                      onClick={() => {
+                        if (compareRegions.includes(stat.region)) {
+                          setCompareRegions(compareRegions.filter(r => r !== stat.region));
+                        } else if (compareRegions.length < 4) {
+                          setCompareRegions([...compareRegions, stat.region]);
+                        }
+                      }}
+                      className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                        compareRegions.includes(stat.region)
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 hover:border-gray-400 text-gray-700'
+                      }`}
+                      disabled={!compareRegions.includes(stat.region) && compareRegions.length >= 4}
+                    >
+                      {stat.region}
+                      <div className="text-xs text-gray-500 mt-1">{stat.count}개</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 비교 결과 */}
+              {compareRegions.length > 1 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300 rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-4 py-3 text-left font-semibold">지역</th>
+                        <th className="border border-gray-300 px-4 py-3 text-center font-semibold">파크골프장 수</th>
+                        <th className="border border-gray-300 px-4 py-3 text-center font-semibold">총 홀 수</th>
+                        <th className="border border-gray-300 px-4 py-3 text-center font-semibold">평균 홀 수</th>
+                        <th className="border border-gray-300 px-4 py-3 text-center font-semibold">접근성</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compareRegions.map((regionName) => {
+                        const stat = regionStats.find(s => s.region === regionName);
+                        if (!stat) return null;
+                        
+                        return (
+                          <tr key={regionName} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 px-4 py-3 font-medium">{regionName}</td>
+                            <td className="border border-gray-300 px-4 py-3 text-center">{stat.count}개</td>
+                            <td className="border border-gray-300 px-4 py-3 text-center">{stat.totalHoles}홀</td>
+                            <td className="border border-gray-300 px-4 py-3 text-center">{stat.avgHoles}홀</td>
+                            <td className="border border-gray-300 px-4 py-3 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                stat.accessibility >= 80 ? 'bg-green-100 text-green-800' :
+                                stat.accessibility >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {stat.accessibility}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {compareRegions.length <= 1 && (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="text-4xl mb-2">📊</div>
+                  <p>비교할 지역을 2개 이상 선택해주세요</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 전체 개요 탭 */}
         {activeTab === 'overview' && (
@@ -439,6 +800,34 @@ export default function StatsPage() {
                         <span className="text-sm font-medium text-gray-900">{count}개</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* 추가 정보 */}
+                <div className="mt-4">
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <div className="text-sm text-blue-800 font-medium mb-1">접근성 점수</div>
+                    <div className="text-lg font-bold text-blue-900">{stat.accessibility}%</div>
+                  </div>
+                </div>
+
+                {/* 최대/최소 코스 정보 */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">최대 코스:</span>
+                      <div className="font-medium text-gray-900 mt-1">
+                        {stat.largestCourse.name}
+                        <span className="text-blue-600 ml-1">({stat.largestCourse.holes}홀)</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">최소 코스:</span>
+                      <div className="font-medium text-gray-900 mt-1">
+                        {stat.smallestCourse.name}
+                        <span className="text-orange-600 ml-1">({stat.smallestCourse.holes}홀)</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
